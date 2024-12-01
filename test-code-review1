@@ -1,0 +1,158 @@
+CREATE OR REPLACE PROCEDURE test_err_pro(innum in integer)
+IS
+BEGIN
+if innum <> 10
+then
+    RAISE NO_DATA_FOUND;
+    
+    end if;
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE test_loop_pro
+IS
+
+    -- Diana 08/11/2/23 --
+    -- add loop on failure --
+    v_number_of_retries   INTEGER := 10;
+    v_failure_count       INTEGER := 0;
+    v_exit                INTEGER := 0;
+    PROCEDURE INSERT_PRO
+   IS
+   BEGIN
+      Insert into TEST_TAB
+   (COL1, COL2, COL3)
+ Values
+   ('one', 1, TO_DATE('31/07/2023 12:17:23', 'DD/MM/YYYY HH24:MI:SS'));
+
+
+        DBMS_OUTPUT.put_line (' Inserted: ' || SQL%ROWCOUNT);
+        COMMIT;
+   END;
+BEGIN
+   
+
+    ----==================================================================
+    
+
+    DBMS_OUTPUT.put_line (' Delete ');
+
+    DELETE FROM test_tab ;
+
+    DBMS_OUTPUT.put_line (' Deleted: ' || SQL%ROWCOUNT);
+    DBMS_OUTPUT.put_line (' Insert test_tab');
+
+    -- Diana 08/11/2/23 --
+    -- add loop on failure --
+    BEGIN
+        DBMS_OUTPUT.put_line (' Begin ');
+        INSERT_PRO;
+
+
+    -- Diana 08/11/2/23 --
+    -- add loop on failure begin --
+
+    EXCEPTION
+        WHEN OTHERS
+        THEN
+            --- finish step ---
+
+            v_failure_count := v_failure_count + 1;
+            DBMS_OUTPUT.put_line ('Failure ' || v_failure_count);
+
+
+
+            WHILE v_exit = 0
+            LOOP
+                BEGIN
+                    DBMS_SESSION.SLEEP (1);
+                    INSERT_PRO;
+
+                    v_exit := 1;
+                EXCEPTION
+                    WHEN OTHERS
+                    THEN
+                        v_failure_count := v_failure_count + 1;
+                        DBMS_OUTPUT.put_line ('Failure ' || v_failure_count);
+
+
+                        IF v_failure_count > v_number_of_retries
+                        THEN
+                            DBMS_OUTPUT.put_line (
+                                'Max Failures, Exiting ' || v_failure_count);
+                            --v_exit := 1;
+
+                            ROLLBACK;
+                            RAISE;
+                        END IF;
+                END;
+            END LOOP;
+
+            DBMS_OUTPUT.put_line (
+                ' End after' || v_failure_count || ' failures');
+    END;
+
+-- Diana 08/11/2/23 --
+-- add loop on failure end --
+
+
+    DBMS_OUTPUT.PUT_LINE (
+           CHR (10)
+        || ' Procedure end: '
+        || TO_CHAR (SYSDATE, 'DD/MM/YYYY HH24:MI:SS'));
+EXCEPTION
+    WHEN OTHERS
+    THEN
+
+      
+        DBMS_OUTPUT.put_line ( '-------SQLCODE-------------');
+        DBMS_OUTPUT.put_line (SQLCODE);
+        DBMS_OUTPUT.put_line ( '-------SQLCODE-------------');
+        DBMS_OUTPUT.put_line (SQLERRM);
+
+ROLLBACK;
+        DBMS_OUTPUT.put_line ( ' ');
+        RAISE_APPLICATION_ERROR (-20001,
+                                 'ERROR in test_loop_pro');
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE test_parallel_rule
+IS
+BEGIN
+
+for i in (select /*+ parallel(4) */ * from all_users )
+loop
+
+null;
+end loop;
+
+
+END;
+/
+
+
+CREATE OR REPLACE PROCEDURE test_pro (
+    p_raise_exception   IN INTEGER DEFAULT 0)
+IS
+BEGIN
+    DBMS_OUTPUT.put_line ('begin');
+    raise no_data_found;
+EXCEPTION
+    WHEN OTHERS
+    THEN
+        DBMS_OUTPUT.put_line ('exception');
+
+        IF NVL (p_raise_exception, 0) = 0
+        THEN
+            DBMS_OUTPUT.put_line ('do not raise');
+        ELSE
+            DBMS_OUTPUT.put_line ('raise');
+            RAISE;
+        END IF;
+
+       
+END test_pro;
+/
